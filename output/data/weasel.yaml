@@ -42,6 +42,11 @@ style:
   vertical_text: false
   vertical_text_left_to_right: false
   vertical_text_with_wrap: false
+  # background image settings (optional)
+  # background_image: "C:/path/to/background.png"
+  # background_image_color: 0x00000000
+  # keyboard_background_image: "C:/path/to/keyboard_background.png"
+  # keyboard_background_image_color: 0x00000000
   layout:
     align_type: center
     max_width: 0	#set 0 to disable max width
@@ -80,6 +85,8 @@ preset_color_schemes:
     candidate_text_color: 0x000000                #非高亮候选文字颜色
     candidate_back_color: 0xeceeee                #非高亮候选背景颜色
     candidate_shadow_color: 0x00000000            #非高亮候选背景块阴影颜色
+    # background_image_color: 0x00000000          #背景图片颜色，可选
+    # keyboard_background_image_color: 0x00000000 #键盘背景图片颜色，可选
 
   azure:
     name: 青天／Azure
