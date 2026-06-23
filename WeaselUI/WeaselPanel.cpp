@@ -67,7 +67,9 @@ WeaselPanel::WeaselPanel(weasel::UI& ui)
       hide_candidates(false),
       pDWR(ui.pdwr()),
       _UICallback(ui.uiCallback()),
-      _m_gdiplusToken(0) {
+      _m_gdiplusToken(0),
+      m_pBackgroundBitmap(NULL),
+      m_pKeyboardBackgroundBitmap(NULL) {
   m_iconDisabled.LoadIconW(IDI_RELOAD, STATUS_ICON_SIZE, STATUS_ICON_SIZE,
                            LR_DEFAULTCOLOR);
   m_iconEnabled.LoadIconW(IDI_ZH, STATUS_ICON_SIZE, STATUS_ICON_SIZE,
@@ -93,15 +95,163 @@ WeaselPanel::WeaselPanel(weasel::UI& ui)
 }
 
 WeaselPanel::~WeaselPanel() {
+  ::KillTimer(m_hWnd, ID_BG_TIMER);
+  delete m_pBackgroundBitmap;
+  m_pBackgroundBitmap = NULL;
+  delete m_pKeyboardBackgroundBitmap;
+  m_pKeyboardBackgroundBitmap = NULL;
   Gdiplus::GdiplusShutdown(_m_gdiplusToken);
   delete m_layout;
   m_layout = NULL;
   // pDWR.reset();
 }
 
+void WeaselPanel::_LoadBackgroundImage() {
+  if (!m_style.background_image.empty() &&
+      m_style.background_image != m_currentBackgroundImage) {
+    // free old animation state
+    ::KillTimer(m_hWnd, ID_BG_TIMER);
+    m_bgFrameIndex = 0;
+    m_totalFrames = 0;
+    delete m_pBackgroundBitmap;
+    m_pBackgroundBitmap = NULL;
+
+    // load the image
+    m_pBackgroundBitmap =
+        Gdiplus::Bitmap::FromFile(m_style.background_image.c_str());
+    if (m_pBackgroundBitmap &&
+        m_pBackgroundBitmap->GetLastStatus() != Gdiplus::Ok) {
+      delete m_pBackgroundBitmap;
+      m_pBackgroundBitmap = NULL;
+    }
+    m_currentBackgroundImage = m_style.background_image;
+
+    // extract animation frames (GIF or APNG)
+    if (m_pBackgroundBitmap) {
+      UINT frameCount = 0;
+      GUID dimPage = Gdiplus::FrameDimensionPage;
+      GUID dimTime = Gdiplus::FrameDimensionTime;
+      frameCount = m_pBackgroundBitmap->GetFrameCount(&dimTime);
+      if (frameCount <= 1)
+        frameCount = m_pBackgroundBitmap->GetFrameCount(&dimPage);
+      m_totalFrames = frameCount;
+      m_bgFrameIndex = 0;
+      if (frameCount > 1) {
+        // get frame delay from the first frame
+        UINT delay = 33;  // default 30fps
+        UINT propSize = m_pBackgroundBitmap->GetPropertyItemSize(
+            PropertyTagFrameDelay);
+        if (propSize > 0) {
+          Gdiplus::PropertyItem* pItem = (Gdiplus::PropertyItem*)new BYTE[propSize];
+          m_pBackgroundBitmap->GetPropertyItem(PropertyTagFrameDelay,
+                                                propSize, pItem);
+          if (pItem->type == PropertyTagTypeLong && pItem->length > 0) {
+            UINT* delays = (UINT*)pItem->value;
+            delay = delays[0] * 10;  // GIF delay is in centiseconds
+          }
+          delete[] (BYTE*)pItem;
+        }
+        m_frameDelay = max(delay, (UINT)16);
+        ::SetTimer(m_hWnd, ID_BG_TIMER, m_frameDelay, NULL);
+      }
+    }
+  }
+}
+
+// Draw image with 9-patch: borders keep original size, center stretches
+static void _DrawImage9Patch(Gdiplus::Graphics& g, Gdiplus::Bitmap* pBitmap,
+                             const CRect& rc, int tint_color, int ml, int mr,
+                             int mt, int mb) {
+  int imgW = (int)pBitmap->GetWidth();
+  int imgH = (int)pBitmap->GetHeight();
+  if (imgW == 0 || imgH == 0) return;
+  if (ml + mr >= imgW) { ml = mr = imgW / 3; }
+  if (mt + mb >= imgH) { mt = mb = imgH / 3; }
+  int scW = imgW - ml - mr;  // source center width
+  int scH = imgH - mt - mb;  // source center height
+  int dcW = max(0, rc.Width() - ml - mr);   // dest center width
+  int dcH = max(0, rc.Height() - mt - mb);  // dest center height
+  int sx[] = {0, ml, ml + scW};
+  int sy[] = {0, mt, mt + scH};
+  int sw[] = {ml, scW, mr};
+  int sh[] = {mt, scH, mb};
+  int dx[] = {rc.left, rc.left + ml, rc.left + ml + dcW};
+  int dy[] = {rc.top, rc.top + mt, rc.top + mt + dcH};
+  int dw[] = {ml, dcW, mr};
+  int dh[] = {mt, dcH, mb};
+  Gdiplus::ImageAttributes* pIA = NULL;
+  Gdiplus::ImageAttributes ia;
+  if (COLORNOTTRANSPARENT(tint_color)) {
+    BYTE a = (tint_color >> 24) & 0xff;
+    BYTE r = GetRValue(tint_color);
+    BYTE g_ = GetGValue(tint_color);
+    BYTE b = GetBValue(tint_color);
+    Gdiplus::ColorMatrix cm = {r / 255.0f, 0, 0, 0, 0,
+                               0, g_ / 255.0f, 0, 0, 0,
+                               0, 0, b / 255.0f, 0, 0,
+                               0, 0, 0, a / 255.0f, 0,
+                               0, 0, 0, 0, 1.0f};
+    ia.SetColorMatrix(&cm, Gdiplus::ColorMatrixFlagsDefault,
+                      Gdiplus::ColorAdjustTypeBitmap);
+    pIA = &ia;
+  }
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      if (sw[col] <= 0 || sh[row] <= 0 || dw[col] <= 0 || dh[row] <= 0)
+        continue;
+      Gdiplus::Rect dst(dx[col], dy[row], dw[col], dh[row]);
+      if (pIA)
+        g.DrawImage(pBitmap, dst, sx[col], sy[row], sw[col], sh[row],
+                    Gdiplus::UnitPixel, pIA);
+      else
+        g.DrawImage(pBitmap, dst, sx[col], sy[row], sw[col], sh[row],
+                    Gdiplus::UnitPixel);
+    }
+  }
+}
+
+void WeaselPanel::_DrawBackgroundImage(CDCHandle dc, const CRect& rc) {
+  Gdiplus::Graphics g(dc);
+  g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+  if (m_pKeyboardBackgroundBitmap && m_pKeyboardBackgroundBitmap->GetWidth() > 0)
+    _DrawImage9Patch(g, m_pKeyboardBackgroundBitmap, rc,
+                     m_style.keyboard_background_image_color, 0, 0, 0, 0);
+  // draw main image with animation frame if available
+  if (m_pBackgroundBitmap && m_pBackgroundBitmap->GetWidth() > 0) {
+    // select current animation frame
+    if (m_totalFrames > 1) {
+      GUID dimTime = Gdiplus::FrameDimensionTime;
+      m_pBackgroundBitmap->SelectActiveFrame(&dimTime, m_bgFrameIndex);
+    }
+    _DrawImage9Patch(g, m_pBackgroundBitmap, rc, m_style.background_image_color,
+                     m_style.background_image_margin_left,
+                     m_style.background_image_margin_right,
+                     m_style.background_image_margin_top,
+                     m_style.background_image_margin_bottom);
+  }
+}
+
 void WeaselPanel::_ResizeWindow() {
   CDCHandle dc = GetDC();
   CSize m_size = m_layout->GetContentSize();
+  m_bgOffsetX = 0;
+  m_bgOffsetY = 0;
+  if (m_pBackgroundBitmap) {
+    UINT imgW = m_pBackgroundBitmap->GetWidth();
+    UINT imgH = m_pBackgroundBitmap->GetHeight();
+    if (imgW > 0 && imgH > 0) {
+      int ml = m_style.background_image_margin_left;
+      int mr = m_style.background_image_margin_right;
+      int mt = m_style.background_image_margin_top;
+      int mb = m_style.background_image_margin_bottom;
+      // height = image height (borders stay original, no vertical stretch)
+      m_size.cy = max(m_size.cy, (int)imgH);
+      // width = content width + left/right margins (center stretches horizontally)
+      m_size.cx = m_size.cx + ml + mr;
+      m_bgOffsetX = ml + m_style.background_image_offset_x;
+      m_bgOffsetY = mt + m_style.background_image_offset_y;
+    }
+  }
   SetWindowPos(NULL, 0, 0, m_size.cx, m_size.cy,
                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOREDRAW);
   ReleaseDC(dc);
@@ -395,6 +545,7 @@ LRESULT WeaselPanel::OnLeftClickedDown(UINT uMsg,
       // click prepage
       if (m_ctx.cinfo.currentPage != 0) {
         CRect prc = m_layout->GetPrepageRect();
+        prc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
         if (m_istorepos)
           prc.OffsetRect(0, m_offsety_preedit);
         if (prc.PtInRect(point)) {
@@ -408,6 +559,7 @@ LRESULT WeaselPanel::OnLeftClickedDown(UINT uMsg,
       // click nextpage
       if (!m_ctx.cinfo.is_last_page) {
         CRect prc = m_layout->GetNextpageRect();
+        prc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
         if (m_istorepos)
           prc.OffsetRect(0, m_offsety_preedit);
         if (prc.PtInRect(point)) {
@@ -703,6 +855,7 @@ bool WeaselPanel::_DrawPreedit(const Text& text,
       const std::wstring pre = L"<";
       const std::wstring next = L">";
       CRect prc = m_layout->GetPrepageRect();
+      prc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
       // clickable color / disabled color
       int color =
           m_ctx.cinfo.currentPage ? m_style.prevpage_color : m_style.text_color;
@@ -711,6 +864,7 @@ bool WeaselPanel::_DrawPreedit(const Text& text,
       _TextOut(prc, pre.c_str(), pre.length(), color, txtFormat);
 
       CRect nrc = m_layout->GetNextpageRect();
+      nrc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
       // clickable color / disabled color
       color = m_ctx.cinfo.is_last_page ? m_style.text_color
                                        : m_style.nextpage_color;
@@ -797,6 +951,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
   ComPtr<IDWriteTextFormat1> labeltxtFormat = pDWR->pLabelTextFormat;
   ComPtr<IDWriteTextFormat1> commenttxtFormat = pDWR->pCommentTextFormat;
   BackType bkType = BackType::CAND;
+  int ox = m_bgOffsetX, oy = m_bgOffsetY;
 
   CRect rect;
   // draw back color and shadow color, with gdi+
@@ -807,6 +962,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
         if (i == m_ctx.cinfo.highlighted || i == m_hoverIndex)
           continue;  // draw non hilited candidates only
         rect = m_layout->GetCandidateRect((int)i);
+        rect.OffsetRect(ox, oy);
         IsToRoundStruct rd = m_layout->GetRoundInfo(i);
         if (m_istorepos) {
           rect.OffsetRect(0, m_offsetys[i]);
@@ -826,6 +982,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
         if (i == m_ctx.cinfo.highlighted || i == m_hoverIndex)
           continue;
         rect = m_layout->GetCandidateRect((int)i);
+        rect.OffsetRect(ox, oy);
         IsToRoundStruct rd = m_layout->GetRoundInfo(i);
         if (m_istorepos) {
           rect.OffsetRect(0, m_offsetys[i]);
@@ -842,6 +999,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
     // draw semi-hilite background and shadow
     if (m_hoverIndex >= 0) {
       rect = m_layout->GetCandidateRect(m_hoverIndex);
+      rect.OffsetRect(ox, oy);
       IsToRoundStruct rd = m_layout->GetRoundInfo(m_hoverIndex);
       if (m_istorepos) {
         rect.OffsetRect(0, m_offsetys[m_hoverIndex]);
@@ -858,6 +1016,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
     // draw highlighted background and shadow
     {
       rect = m_layout->GetHighlightRect();
+      rect.OffsetRect(ox, oy);
       bool markSt = bar_scale_ == 1.0 || (!m_style.mark_text.empty());
       IsToRoundStruct rd = m_layout->GetRoundInfo(m_ctx.cinfo.highlighted);
       if (m_istorepos) {
@@ -924,6 +1083,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
           labels, (int)i, m_style.label_text_format.c_str());
       if (!label.empty()) {
         rect = m_layout->GetCandidateLabelRect((int)i);
+        rect.OffsetRect(ox, oy);
         if (m_istorepos)
           rect.OffsetRect(0, m_offsetys[i]);
         _TextOut(rect, label.c_str(), label.length(), label_text_color,
@@ -933,6 +1093,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
       std::wstring text = candidates.at(i).str;
       if (!text.empty()) {
         rect = m_layout->GetCandidateTextRect((int)i);
+        rect.OffsetRect(ox, oy);
         if (m_istorepos)
           rect.OffsetRect(0, m_offsetys[i]);
         _TextOut(rect, text.c_str(), text.length(), candidate_text_color,
@@ -942,6 +1103,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
       std::wstring comment = comments.at(i).str;
       if (!comment.empty() && COLORNOTTRANSPARENT(comment_text_color)) {
         rect = m_layout->GetCandidateCommentRect((int)i);
+        rect.OffsetRect(ox, oy);
         if (m_istorepos)
           rect.OffsetRect(0, m_offsetys[i]);
         _TextOut(rect, comment.c_str(), comment.length(), comment_text_color,
@@ -954,6 +1116,7 @@ bool WeaselPanel::_DrawCandidates(CDCHandle& dc, bool back) {
       if (!m_style.mark_text.empty() &&
           COLORNOTTRANSPARENT(m_style.hilited_mark_color)) {
         CRect rc = m_layout->GetHighlightRect();
+        rc.OffsetRect(ox, oy);
         if (m_istorepos)
           rc.OffsetRect(0, m_offsetys[m_ctx.cinfo.highlighted]);
         rc.InflateRect(DPI_SCALE(m_style.hilite_padding_x),
@@ -997,8 +1160,12 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
   ReleaseDC(hdc);
   bool drawn = false;
   if (!hide_candidates) {
+    // Load background images
+    _LoadBackgroundImage();
     CRect auxrc = m_layout->GetAuxiliaryRect();
     CRect preeditrc = m_layout->GetPreeditRect();
+    auxrc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
+    preeditrc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
     if (m_istorepos) {
       CRect* rects = new CRect[m_candidateCount];
       int* btmys = new int[m_candidateCount];
@@ -1038,9 +1205,15 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
     if ((!m_ctx.empty() && !m_style.inline_preedit) ||
         (m_style.inline_preedit && (m_candidateCount || !m_ctx.aux.empty()))) {
       CRect backrc = m_layout->GetContentRect();
+      backrc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
       _HighlightText(memDC, backrc, m_style.back_color, m_style.shadow_color,
                      DPI_SCALE(m_style.round_corner_ex), BackType::BACKGROUND,
                      IsToRoundStruct(), m_style.border_color);
+      // draw background image at window origin
+      if (m_pBackgroundBitmap || m_pKeyboardBackgroundBitmap) {
+        _DrawBackgroundImage(memDC, rcw);
+        drawn = true;
+      }
     }
     if (!m_ctx.aux.str.empty()) {
       if (m_istorepos)
@@ -1090,6 +1263,7 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
       LoadIconNecessary(m_current_full_icon, m_style.current_full_icon,
                         m_iconFull, IDI_FULL_SHAPE);
       CRect iconRect(m_layout->GetStatusIconRect());
+      iconRect.OffsetRect(m_bgOffsetX, m_bgOffsetY);
       if (m_istorepos && !m_ctx.aux.str.empty())
         iconRect.OffsetRect(0, m_offsety_aux);
       else if (m_istorepos && !m_layout->IsInlinePreedit() &&
@@ -1153,11 +1327,18 @@ LRESULT WeaselPanel::OnDestroy(UINT uMsg,
                                WPARAM wParam,
                                LPARAM lParam,
                                BOOL& bHandled) {
-  m_hoverIndex = -1;
-  m_lastMousePos = {-1, -1};
-  m_sticky = false;
-  delete m_layout;
-  m_layout = NULL;
+  ::KillTimer(m_hWnd, ID_BG_TIMER);
+  return 0;
+}
+
+LRESULT WeaselPanel::OnAnimTimer(UINT uMsg,
+                                 WPARAM wParam,
+                                 LPARAM lParam,
+                                 BOOL& bHandled) {
+  if (wParam == ID_BG_TIMER && m_totalFrames > 1) {
+    m_bgFrameIndex = (m_bgFrameIndex + 1) % m_totalFrames;
+    RedrawWindow();
+  }
   return 0;
 }
 

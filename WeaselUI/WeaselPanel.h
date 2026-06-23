@@ -28,6 +28,7 @@ class WeaselPanel
   BEGIN_MSG_MAP(WeaselPanel)
   MESSAGE_HANDLER(WM_CREATE, OnCreate)
   MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+  MESSAGE_HANDLER(WM_TIMER, OnAnimTimer)
   MESSAGE_HANDLER(WM_DPICHANGED, OnDpiChanged)
   MESSAGE_HANDLER(WM_MOUSEACTIVATE, OnMouseActivate)
   MESSAGE_HANDLER(WM_LBUTTONUP, OnLeftClickedUp)
@@ -40,6 +41,7 @@ class WeaselPanel
 
   LRESULT OnCreate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
   LRESULT OnDestroy(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+  LRESULT OnAnimTimer(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
   LRESULT OnDpiChanged(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
   LRESULT OnMouseActivate(UINT uMsg,
                           WPARAM wParam,
@@ -103,6 +105,17 @@ class WeaselPanel
                 IDWriteTextFormat1* const pTextFormat = NULL);
 
   void _LayerUpdate(const CRect& rc, CDCHandle dc);
+  void _LoadBackgroundImage();
+  void _DrawBackgroundImage(CDCHandle dc, const CRect& rc);
+  int m_bgOffsetX = 0;
+  int m_bgOffsetY = 0;
+  // APNG/GIF animation
+  int m_bgFrameIndex = 0;
+  int m_totalFrames = 0;
+  UINT m_frameDelay = 33;
+  UINT_PTR m_bgTimerId = 0;
+  static const UINT ID_BG_TIMER = 20241001;
+
 
   weasel::Layout* m_layout;
   weasel::Context& m_ctx;
@@ -131,6 +144,11 @@ class WeaselPanel
   // for gdiplus drawings
   Gdiplus::GdiplusStartupInput _m_gdiplusStartupInput;
   ULONG_PTR _m_gdiplusToken;
+  // background image
+  Gdiplus::Bitmap* m_pBackgroundBitmap;
+  Gdiplus::Bitmap* m_pKeyboardBackgroundBitmap;
+  std::wstring m_currentBackgroundImage;
+  std::wstring m_currentKeyboardBackgroundImage;
 
   UINT dpi;
 

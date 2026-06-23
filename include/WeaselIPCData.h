@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <string>
 #include <vector>
@@ -287,6 +287,19 @@ struct UIStyle {
   int hilited_mark_color;
   int prevpage_color;
   int nextpage_color;
+  // background image settings
+  std::wstring background_image;
+  int background_image_color;
+  std::wstring keyboard_background_image;
+  int keyboard_background_image_color;
+  // background image 9-patch margins (pixels, 0 = no border)
+  int background_image_margin_left;
+  int background_image_margin_right;
+  int background_image_margin_top;
+  int background_image_margin_bottom;
+  // text position adjustment relative to image content area (pixels)
+  int background_image_offset_x;
+  int background_image_offset_y;
   // per client
   int client_caps;
   int baseline;
@@ -361,7 +374,17 @@ struct UIStyle {
         nextpage_color(0),
         baseline(0),
         linespacing(0),
-        client_caps(0) {}
+        client_caps(0),
+        background_image(),
+        background_image_color(0),
+        keyboard_background_image(),
+        keyboard_background_image_color(0),
+        background_image_margin_left(0),
+        background_image_margin_right(0),
+        background_image_margin_top(0),
+        background_image_margin_bottom(0),
+        background_image_offset_x(0),
+        background_image_offset_y(0) {}
   bool operator!=(const UIStyle& st) {
     return (
         align_type != st.align_type || antialias_mode != st.antialias_mode ||
@@ -420,7 +443,17 @@ struct UIStyle {
         hilited_comment_text_color != st.hilited_comment_text_color ||
         hilited_mark_color != st.hilited_mark_color ||
         prevpage_color != st.prevpage_color ||
-        nextpage_color != st.nextpage_color);
+        nextpage_color != st.nextpage_color ||
+        background_image != st.background_image ||
+        background_image_color != st.background_image_color ||
+        keyboard_background_image != st.keyboard_background_image ||
+        keyboard_background_image_color != st.keyboard_background_image_color ||
+        background_image_margin_left != st.background_image_margin_left ||
+        background_image_margin_right != st.background_image_margin_right ||
+        background_image_margin_top != st.background_image_margin_top ||
+        background_image_margin_bottom != st.background_image_margin_bottom ||
+        background_image_offset_x != st.background_image_offset_x ||
+        background_image_offset_y != st.background_image_offset_y);
   }
 };
 }  // namespace weasel
@@ -496,6 +529,17 @@ void serialize(Archive& ar, weasel::UIStyle& s, const unsigned int version) {
   ar & s.hilited_mark_color;
   ar & s.prevpage_color;
   ar & s.nextpage_color;
+  // background image settings
+  ar & s.background_image;
+  ar & s.background_image_color;
+  ar & s.keyboard_background_image;
+  ar & s.keyboard_background_image_color;
+  ar & s.background_image_margin_left;
+  ar & s.background_image_margin_right;
+  ar & s.background_image_margin_top;
+  ar & s.background_image_margin_bottom;
+  ar & s.background_image_offset_x;
+  ar & s.background_image_offset_y;
   // per client
   ar & s.client_caps;
   ar & s.baseline;
