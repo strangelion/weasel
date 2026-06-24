@@ -113,6 +113,7 @@ class WeaselPanel
   int m_bgFrameIndex = 0;
   int m_totalFrames = 0;
   UINT m_frameDelay = 33;
+  bool m_isAnimating = false;  // prevent recursive paint
   UINT_PTR m_bgTimerId = 0;
   static const UINT ID_BG_TIMER = 20241001;
 

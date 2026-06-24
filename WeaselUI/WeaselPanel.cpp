@@ -151,7 +151,7 @@ void WeaselPanel::_LoadBackgroundImage() {
           }
           delete[] (BYTE*)pItem;
         }
-        m_frameDelay = max(delay, (UINT)16);
+        m_frameDelay = max(delay, (UINT)66);  // min 15fps to reduce CPU
         ::SetTimer(m_hWnd, ID_BG_TIMER, m_frameDelay, NULL);
       }
     }
@@ -236,6 +236,8 @@ void WeaselPanel::_ResizeWindow() {
   CSize m_size = m_layout->GetContentSize();
   m_bgOffsetX = 0;
   m_bgOffsetY = 0;
+  // load image first to get correct offset
+  _LoadBackgroundImage();
   if (m_pBackgroundBitmap) {
     UINT imgW = m_pBackgroundBitmap->GetWidth();
     UINT imgH = m_pBackgroundBitmap->GetHeight();
@@ -1335,9 +1337,11 @@ LRESULT WeaselPanel::OnAnimTimer(UINT uMsg,
                                  WPARAM wParam,
                                  LPARAM lParam,
                                  BOOL& bHandled) {
-  if (wParam == ID_BG_TIMER && m_totalFrames > 1) {
+  if (wParam == ID_BG_TIMER && m_totalFrames > 1 && !m_isAnimating) {
     m_bgFrameIndex = (m_bgFrameIndex + 1) % m_totalFrames;
+    m_isAnimating = true;
     RedrawWindow();
+    m_isAnimating = false;
   }
   return 0;
 }
