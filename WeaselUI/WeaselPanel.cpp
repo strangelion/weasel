@@ -7,6 +7,30 @@
 #include <WeaselIPCData.h>
 #include <algorithm>
 
+// SEH-safe D2D rendering helper (no C++ objects on stack)
+static BOOL SafeD2DRender(ID2D1DCRenderTarget* pRT, HDC memDC, const RECT* prc) {
+  BOOL ok = FALSE;
+  __try {
+    if (FAILED(pRT->BindDC(memDC, prc)))
+      return FALSE;
+    pRT->BeginDraw();
+    ok = TRUE;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return FALSE;
+  }
+  return ok;
+}
+
+static HRESULT SafeD2DEndDraw(ID2D1DCRenderTarget* pRT) {
+  HRESULT hr = E_FAIL;
+  __try {
+    hr = pRT->EndDraw();
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    hr = E_FAIL;
+  }
+  return hr;
+}
+
 #include "VerticalLayout.h"
 #include "HorizontalLayout.h"
 #include "FullScreenLayout.h"
@@ -152,7 +176,7 @@ void WeaselPanel::_LoadBackgroundImage() {
           delete[] (BYTE*)pItem;
         }
         m_frameDelay = max(delay, (UINT)66);  // min 15fps to reduce CPU
-        ::SetTimer(m_hWnd, ID_BG_TIMER, m_frameDelay, NULL);
+        // timer is started in DoPaint after first successful render
       }
     }
   }
@@ -1154,10 +1178,16 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
   // turn off WS_EX_TRANSPARENT, for better resp performance
   ModifyStyleEx(WS_EX_TRANSPARENT, WS_EX_LAYERED);
   GetClientRect(&rcw);
+  if (rcw.Width() <= 0 || rcw.Height() <= 0)
+    return;
   // prepare memDC
   CDCHandle hdc = ::GetDC(m_hWnd);
   CDCHandle memDC = ::CreateCompatibleDC(hdc);
   HBITMAP memBitmap = ::CreateCompatibleBitmap(hdc, rcw.Width(), rcw.Height());
+  if (!memBitmap) {
+    ReleaseDC(hdc);
+    return;
+  }
   ::SelectObject(memDC, memBitmap);
   ReleaseDC(hdc);
   bool drawn = false;
@@ -1208,6 +1238,7 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
         (m_style.inline_preedit && (m_candidateCount || !m_ctx.aux.empty()))) {
       CRect backrc = m_layout->GetContentRect();
       backrc.OffsetRect(m_bgOffsetX, m_bgOffsetY);
+      int dcSaved = ::SaveDC(memDC);
       _HighlightText(memDC, backrc, m_style.back_color, m_style.shadow_color,
                      DPI_SCALE(m_style.round_corner_ex), BackType::BACKGROUND,
                      IsToRoundStruct(), m_style.border_color);
@@ -1216,6 +1247,7 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
         _DrawBackgroundImage(memDC, rcw);
         drawn = true;
       }
+      ::RestoreDC(memDC, dcSaved);
     }
     if (!m_ctx.aux.str.empty()) {
       if (m_istorepos)
@@ -1233,23 +1265,26 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
 
     // begin  texts drawing, if pRenderTarget failed, force to reinit
     // directwrite resources
-    if (FAILED(pDWR->pRenderTarget->BindDC(memDC, &rcw))) {
-      _InitFontRes(true);
-      pDWR->pRenderTarget->BindDC(memDC, &rcw);
-    }
-    pDWR->pRenderTarget->BeginDraw();
-    // draw auxiliary string
-    if (!m_ctx.aux.str.empty())
-      drawn |= _DrawPreedit(m_ctx.aux, memDC, auxrc);
-    // draw preedit string
-    if (!m_layout->IsInlinePreedit() && !m_ctx.preedit.str.empty())
-      drawn |= _DrawPreedit(m_ctx.preedit, memDC, preeditrc);
-    // draw candidates string
-    if (m_candidateCount)
-      drawn |= _DrawCandidates(memDC);
-    if (FAILED(pDWR->pRenderTarget->EndDraw())) {
-      _InitFontRes(true);
-      Refresh();
+    if (pDWR && pDWR->pRenderTarget) {
+      if (!SafeD2DRender(pDWR->pRenderTarget.Get(), memDC, &rcw)) {
+        _InitFontRes(true);
+        if (pDWR && pDWR->pRenderTarget)
+          SafeD2DRender(pDWR->pRenderTarget.Get(), memDC, &rcw);
+      }
+      if (pDWR && pDWR->pRenderTarget) {
+        // draw auxiliary string
+        if (!m_ctx.aux.str.empty())
+          drawn |= _DrawPreedit(m_ctx.aux, memDC, auxrc);
+        // draw preedit string
+        if (!m_layout->IsInlinePreedit() && !m_ctx.preedit.str.empty())
+          drawn |= _DrawPreedit(m_ctx.preedit, memDC, preeditrc);
+        // draw candidates string
+        if (m_candidateCount)
+          drawn |= _DrawCandidates(memDC);
+        if (FAILED(SafeD2DEndDraw(pDWR->pRenderTarget.Get()))) {
+          _InitFontRes(true);
+        }
+      }
     }
     // end texts drawing
 
@@ -1287,6 +1322,11 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
       ShowWindow(SW_HIDE);
   }
   _LayerUpdate(rcw, memDC);
+
+  // start animation timer after first successful render with animated image
+  if (m_totalFrames > 1 && (m_pBackgroundBitmap || m_pKeyboardBackgroundBitmap)) {
+    ::SetTimer(m_hWnd, ID_BG_TIMER, m_frameDelay, NULL);
+  }
 
   // clean objs
   ::DeleteDC(memDC);
