@@ -60,7 +60,7 @@ jobs:
 
       - name: Cache Boost
         id: cache-boost
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.BOOST_ROOT }}
@@ -80,7 +80,7 @@ jobs:
       # bundled winsparkle v0.9.2 to disable auto open ReleaseNoteUrl in default browser
       - name: cache bundled winsparkle
         id: cache-winsparkle
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: |
             ${{ github.workspace }}\winsparkle\x64\Release\WinSparkle.dll
