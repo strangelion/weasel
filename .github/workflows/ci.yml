@@ -20,7 +20,7 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: |
           wget https://apt.llvm.org/llvm-snapshot.gpg.key
-          sudo gpg --dearmor < llvm-snapshot.gpg.key > /usr/share/keyrings/llvm-archive-keyring.gpg
+          gpg --dearmor < llvm-snapshot.gpg.key | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg > /dev/null
           echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-18.list
           sudo apt-get update
           sudo apt-get install -y clang-format-18
@@ -144,6 +144,14 @@ jobs:
           } else {
             .\xbuild.bat arm64 installer
           }
+
+      - name: Run IPC regression tests
+        if: matrix.variant == 'msbuild'
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          .\test\run-tests.ps1 -Platform x64
+          .\test\run-tests.ps1 -Platform Win32
 
       - name: Compress Debug Symbols
         if: matrix.variant == 'msbuild'

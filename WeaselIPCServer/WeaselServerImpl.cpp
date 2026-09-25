@@ -441,7 +441,7 @@ PipeServer::ServerRunner PipeServer::GetServerRunner(
 void PipeServer::_ProcessPipeThread(HANDLE pipe, ServerHandler const& handler) {
   try {
     for (;;) {
-      Res msg;
+      Res msg{};
       _Receive(pipe, &msg, sizeof(msg));
       handler(msg, [this, pipe](Msg resp) { _Send(pipe, resp); });
     }

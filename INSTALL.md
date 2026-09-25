@@ -2,13 +2,14 @@
 
 ## Preparation
 
-  - Install **Visual Studio 2017** for *Desktop development in C++*
-    with components *ATL*, *MFC* and *Windows XP support*.
-    Visual Studio 2015 or later versions may work with additional configuration.
+  - Install **Visual Studio 2022** with *Desktop development with C++*,
+    the **v143** toolset, **ATL/MFC**, and the **Windows 10 SDK 10.0.19041.0**
+    to match CI. Include the ARM/ARM64 C++ tools and ATL/MFC components when
+    building the ARM variants. The supported runtime is Windows 8.1 or later.
 
-  - Install dev tools: `git`, `cmake`， `clang-format(>=17.0.6)`
+  - Install dev tools: `git`, `cmake`, `clang-format 18` (used by CI).
 
-  - Download third-party libraries: `boost(>=1.60.0)`
+  - Download third-party libraries: `boost` (CI uses **1.84.0**).
 
 Optional:
 
@@ -36,7 +37,8 @@ You can create the file by copying `env.bat.template` in the source tree.
 Make sure `BOOST_ROOT` is set to the existing path `X:\path\to\boost_<version>`.
 
 When using a different version of Visual Studio or platform toolset, un-comment
-lines to set corresponding variables.
+lines to set corresponding variables. For the CI toolchain, use
+`env.vs2022.bat` as the starting point for `env.bat`.
 
 Alternatively, start a *Developer Command Prompt* window and set environment
 variables directly in the console, before invocation of `build.bat`:
@@ -66,6 +68,37 @@ respectively, then build Weasel without the `all` command line option.
 build.bat boost data opencc
 build.bat weasel
 ```
+
+### Run regression tests
+
+After building with MSBuild, open a Visual Studio Developer PowerShell at the
+repository root and run:
+
+```powershell
+.\test\run-tests.ps1 -Platform x64
+.\test\run-tests.ps1 -Platform Win32
+```
+
+The script builds the Release test executable using the generated `weasel.props`
+and existing Boost libraries. It tests response parsing and real named-pipe
+communication in isolation, without connecting to the installed input method.
+Each run has a 60-second timeout, returns a failure on build or test errors, and
+saves logs under `msbuild/tests/<platform>`. Use `-PlatformToolset v143` to
+override the toolset in `weasel.props` if needed.
+
+The interactive `TestWeaselIPC` utility is separate and is not run by CI.
+
+### Build with GitHub Actions
+
+The `CI` workflow in `.github/workflows/ci.yml` builds both MSBuild and xmake
+variants. The MSBuild job also runs the x64 and Win32 regression tests before
+uploading artifacts. After a successful run, open **Actions > CI > the run >
+Artifacts** and download `weasel-artifact-*`; the archive contains the installer
+and debug symbols. A fork may need to enable Actions first, and can also start
+the workflow manually with **Run workflow**.
+
+Automatic Release publishing is restricted to the upstream `rime/weasel`
+repository by the workflow conditions; forks still receive build artifacts.
 
 ### Install and try it live
 

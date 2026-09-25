@@ -9,6 +9,7 @@ $WEASEL_SOURCE_PATH = @("RimeWithWeasel", "WeaselDeployer",
 $excludePatterns = Get-Content .exclude_pattern.txt
 
 function ShouldExclude($filePath) {
+  $filePath = $filePath -replace '\\', '/'
   foreach ($pattern in $excludePatterns) {
     if ($filePath -like "*$pattern*") {
       return $true

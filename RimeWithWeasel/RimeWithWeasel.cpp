@@ -1356,13 +1356,20 @@ static void _UpdateUIStyle(RimeConfig* config, UI* ui, bool initialize) {
                style.enhanced_position, true, false);
   // get background image settings
   _RimeGetIntStr(config, "style/background_image", style.background_image);
-  _RimeGetIntStr(config, "style/keyboard_background_image", style.keyboard_background_image);
-  _RimeGetIntStr(config, "style/background_image_margin_left", style.background_image_margin_left);
-  _RimeGetIntStr(config, "style/background_image_margin_right", style.background_image_margin_right);
-  _RimeGetIntStr(config, "style/background_image_margin_top", style.background_image_margin_top);
-  _RimeGetIntStr(config, "style/background_image_margin_bottom", style.background_image_margin_bottom);
-  _RimeGetIntStr(config, "style/background_image_offset_x", style.background_image_offset_x);
-  _RimeGetIntStr(config, "style/background_image_offset_y", style.background_image_offset_y);
+  _RimeGetIntStr(config, "style/keyboard_background_image",
+                 style.keyboard_background_image);
+  _RimeGetIntStr(config, "style/background_image_margin_left",
+                 style.background_image_margin_left);
+  _RimeGetIntStr(config, "style/background_image_margin_right",
+                 style.background_image_margin_right);
+  _RimeGetIntStr(config, "style/background_image_margin_top",
+                 style.background_image_margin_top);
+  _RimeGetIntStr(config, "style/background_image_margin_bottom",
+                 style.background_image_margin_bottom);
+  _RimeGetIntStr(config, "style/background_image_offset_x",
+                 style.background_image_offset_x);
+  _RimeGetIntStr(config, "style/background_image_offset_y",
+                 style.background_image_offset_y);
   // get color scheme
   const int BUF_SIZE = 255;
   char buffer[BUF_SIZE + 1] = {0};
@@ -1425,7 +1432,8 @@ static bool _UpdateUIStyleColor(RimeConfig* config,
     COLOR("hilited_mark_color", style.hilited_mark_color, 0);
     // background image colors
     COLOR("background_image_color", style.background_image_color, 0);
-    COLOR("keyboard_background_image_color", style.keyboard_background_image_color, 0);
+    COLOR("keyboard_background_image_color",
+          style.keyboard_background_image_color, 0);
 #undef COLOR
     return true;
   }

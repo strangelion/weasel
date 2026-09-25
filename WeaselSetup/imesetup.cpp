@@ -336,7 +336,9 @@ int register_text_service(const std::wstring& tsf_path,
     params = L" /u " + params;  // unregister
   }
   // if (silent)  // always silent
-  { params = L" /s " + params; }
+  {
+    params = L" /s " + params;
+  }
 
   if (!SetEnvironmentVariable(L"TEXTSERVICE_PROFILE", profile.c_str())) {
     throw std::runtime_error("SetEnvironmentVariable failed");

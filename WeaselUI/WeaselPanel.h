@@ -117,7 +117,6 @@ class WeaselPanel
   UINT_PTR m_bgTimerId = 0;
   static const UINT ID_BG_TIMER = 20241001;
 
-
   weasel::Layout* m_layout;
   weasel::Context& m_ctx;
   weasel::Context& m_octx;

@@ -7,3 +7,16 @@ winsparkle
 immdev.h
 SystemTraySDK.h
 ctffunc.h
+include/darts.h
+include/glog
+include/gtest
+include/leveldb
+include/marisa
+include/opencc
+include/rime_api.h
+include/rime_deployer.h
+include/rime_levers_api.h
+include/rime_modules.h
+include/utf8
+include/X11
+include/yaml-cpp

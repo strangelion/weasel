@@ -8,7 +8,9 @@
 #include <algorithm>
 
 // SEH-safe D2D rendering helper (no C++ objects on stack)
-static BOOL SafeD2DRender(ID2D1DCRenderTarget* pRT, HDC memDC, const RECT* prc) {
+static BOOL SafeD2DRender(ID2D1DCRenderTarget* pRT,
+                          HDC memDC,
+                          const RECT* prc) {
   BOOL ok = FALSE;
   __try {
     if (FAILED(pRT->BindDC(memDC, prc)))
@@ -163,12 +165,13 @@ void WeaselPanel::_LoadBackgroundImage() {
       if (frameCount > 1) {
         // get frame delay from the first frame
         UINT delay = 33;  // default 30fps
-        UINT propSize = m_pBackgroundBitmap->GetPropertyItemSize(
-            PropertyTagFrameDelay);
+        UINT propSize =
+            m_pBackgroundBitmap->GetPropertyItemSize(PropertyTagFrameDelay);
         if (propSize > 0) {
-          Gdiplus::PropertyItem* pItem = (Gdiplus::PropertyItem*)new BYTE[propSize];
-          m_pBackgroundBitmap->GetPropertyItem(PropertyTagFrameDelay,
-                                                propSize, pItem);
+          Gdiplus::PropertyItem* pItem =
+              (Gdiplus::PropertyItem*)new BYTE[propSize];
+          m_pBackgroundBitmap->GetPropertyItem(PropertyTagFrameDelay, propSize,
+                                               pItem);
           if (pItem->type == PropertyTagTypeLong && pItem->length > 0) {
             UINT* delays = (UINT*)pItem->value;
             delay = delays[0] * 10;  // GIF delay is in centiseconds
@@ -183,16 +186,26 @@ void WeaselPanel::_LoadBackgroundImage() {
 }
 
 // Draw image with 9-patch: borders keep original size, center stretches
-static void _DrawImage9Patch(Gdiplus::Graphics& g, Gdiplus::Bitmap* pBitmap,
-                             const CRect& rc, int tint_color, int ml, int mr,
-                             int mt, int mb) {
+static void _DrawImage9Patch(Gdiplus::Graphics& g,
+                             Gdiplus::Bitmap* pBitmap,
+                             const CRect& rc,
+                             int tint_color,
+                             int ml,
+                             int mr,
+                             int mt,
+                             int mb) {
   int imgW = (int)pBitmap->GetWidth();
   int imgH = (int)pBitmap->GetHeight();
-  if (imgW == 0 || imgH == 0) return;
-  if (ml + mr >= imgW) { ml = mr = imgW / 3; }
-  if (mt + mb >= imgH) { mt = mb = imgH / 3; }
-  int scW = imgW - ml - mr;  // source center width
-  int scH = imgH - mt - mb;  // source center height
+  if (imgW == 0 || imgH == 0)
+    return;
+  if (ml + mr >= imgW) {
+    ml = mr = imgW / 3;
+  }
+  if (mt + mb >= imgH) {
+    mt = mb = imgH / 3;
+  }
+  int scW = imgW - ml - mr;                 // source center width
+  int scH = imgH - mt - mb;                 // source center height
   int dcW = max(0, rc.Width() - ml - mr);   // dest center width
   int dcH = max(0, rc.Height() - mt - mb);  // dest center height
   int sx[] = {0, ml, ml + scW};
@@ -210,11 +223,10 @@ static void _DrawImage9Patch(Gdiplus::Graphics& g, Gdiplus::Bitmap* pBitmap,
     BYTE r = GetRValue(tint_color);
     BYTE g_ = GetGValue(tint_color);
     BYTE b = GetBValue(tint_color);
-    Gdiplus::ColorMatrix cm = {r / 255.0f, 0, 0, 0, 0,
-                               0, g_ / 255.0f, 0, 0, 0,
-                               0, 0, b / 255.0f, 0, 0,
-                               0, 0, 0, a / 255.0f, 0,
-                               0, 0, 0, 0, 1.0f};
+    Gdiplus::ColorMatrix cm = {
+        r / 255.0f, 0, 0, 0,          0, 0, g_ / 255.0f, 0, 0,
+        0,          0, 0, b / 255.0f, 0, 0, 0,           0, 0,
+        a / 255.0f, 0, 0, 0,          0, 0, 1.0f};
     ia.SetColorMatrix(&cm, Gdiplus::ColorMatrixFlagsDefault,
                       Gdiplus::ColorAdjustTypeBitmap);
     pIA = &ia;
@@ -237,7 +249,8 @@ static void _DrawImage9Patch(Gdiplus::Graphics& g, Gdiplus::Bitmap* pBitmap,
 void WeaselPanel::_DrawBackgroundImage(CDCHandle dc, const CRect& rc) {
   Gdiplus::Graphics g(dc);
   g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-  if (m_pKeyboardBackgroundBitmap && m_pKeyboardBackgroundBitmap->GetWidth() > 0)
+  if (m_pKeyboardBackgroundBitmap &&
+      m_pKeyboardBackgroundBitmap->GetWidth() > 0)
     _DrawImage9Patch(g, m_pKeyboardBackgroundBitmap, rc,
                      m_style.keyboard_background_image_color, 0, 0, 0, 0);
   // draw main image with animation frame if available
@@ -272,7 +285,8 @@ void WeaselPanel::_ResizeWindow() {
       int mb = m_style.background_image_margin_bottom;
       // height = image height (borders stay original, no vertical stretch)
       m_size.cy = max(m_size.cy, (int)imgH);
-      // width = content width + left/right margins (center stretches horizontally)
+      // width = content width + left/right margins (center stretches
+      // horizontally)
       m_size.cx = m_size.cx + ml + mr;
       m_bgOffsetX = ml + m_style.background_image_offset_x;
       m_bgOffsetY = mt + m_style.background_image_offset_y;
@@ -1324,7 +1338,8 @@ void WeaselPanel::DoPaint(CDCHandle dc) {
   _LayerUpdate(rcw, memDC);
 
   // start animation timer after first successful render with animated image
-  if (m_totalFrames > 1 && (m_pBackgroundBitmap || m_pKeyboardBackgroundBitmap)) {
+  if (m_totalFrames > 1 &&
+      (m_pBackgroundBitmap || m_pKeyboardBackgroundBitmap)) {
     ::SetTimer(m_hWnd, ID_BG_TIMER, m_frameDelay, NULL);
   }
 

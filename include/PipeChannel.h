@@ -16,9 +16,12 @@ class PipeChannelBase {
     std::unique_ptr<char[]> buffer;
     std::unique_ptr<Stream> write_stream;
     bool has_body;
+    size_t received_bytes;
 
     ChannelContext(size_t bs)
-        : buffer(std::make_unique<char[]>(bs)), has_body(false) {}
+        : buffer(std::make_unique<char[]>(bs)),
+          has_body(false),
+          received_bytes(0) {}
   };
 
   PipeChannelBase(std::wstring&& pn_cmd, size_t bs, SECURITY_ATTRIBUTES* s);
@@ -134,7 +137,7 @@ class PipeChannel : public PipeChannelBase {
 
   char* SendBuffer() const { return _GetContext()->buffer.get() + _MsgSize; }
 
-  char* ReceiveBuffer() const { return _GetContext()->buffer.get() + _ResSize; }
+  char* ReceiveBuffer() const { return _GetContext()->buffer.get(); }
 
   template <typename _TyHandler>
   bool HandleResponseData(_TyHandler const& handler) {
@@ -142,9 +145,9 @@ class PipeChannel : public PipeChannelBase {
       return false;
     }
 
-    // Use whole buffer to receive data in client
+    // The header has already been read separately from the response body.
     return handler((LPWSTR)_GetContext()->buffer.get(),
-                   (UINT)(buff_size * sizeof(char) / sizeof(wchar_t)));
+                   (UINT)(_GetContext()->received_bytes / sizeof(wchar_t)));
   }
 
  protected:
@@ -176,7 +179,7 @@ class PipeChannel : public PipeChannelBase {
 
   _TyRes _ReceiveResponse() {
     HANDLE* phandle = _GetPipeHandle();
-    _TyRes result;
+    _TyRes result{};
     _Receive(*phandle, &result, sizeof(result));
     return result;
   }

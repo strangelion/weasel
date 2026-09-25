@@ -6,7 +6,7 @@
 式恕堂 版權所無
 
 [![Download](https://img.shields.io/github/v/release/rime/weasel)](https://github.com/rime/weasel/releases/latest)
-[![Build status](https://github.com/rime/weasel/actions/workflows/commit-ci.yml/badge.svg)](https://github.com/rime/weasel/actions/workflows/commit-ci.yml)
+[![Build status](https://github.com/rime/weasel/actions/workflows/ci.yml/badge.svg)](https://github.com/rime/weasel/actions/workflows/ci.yml)
 [![GitHub Tag](https://img.shields.io/github/tag/rime/weasel.svg)](https://github.com/rime/weasel)
 
 授權條款：GPLv3

@@ -86,19 +86,25 @@ void PipeChannelBase::_FinalizePipe(HANDLE& p) {
 }
 
 void PipeChannelBase::_Receive(HANDLE pipe, LPVOID msg, size_t rec_len) {
-  DWORD lread;
+  auto ctx = _GetContext();
+  ctx->received_bytes = 0;
+  ctx->has_body = false;
+  memset(ctx->buffer.get(), 0, buff_size);
+  DWORD lread = 0;
   BOOL success = ::ReadFile(pipe, msg, rec_len, &lread, NULL);
-  if (!success) {
-    _ThrowIfNot(ERROR_MORE_DATA);
+  DWORD error = success ? ERROR_SUCCESS : ::GetLastError();
+  if (!success && error != ERROR_MORE_DATA)
+    throw error;
+  if (lread != rec_len)
+    throw DWORD(ERROR_INVALID_DATA);
 
-    auto ctx = _GetContext();
-    memset(ctx->buffer.get(), 0, buff_size);
+  if (!success) {
     success = ::ReadFile(pipe, ctx->buffer.get(), buff_size, &lread, NULL);
     if (!success) {
       _ThrowLastError;
     }
+    ctx->received_bytes = lread;
   }
-  _GetContext()->has_body = false;
 }
 
 HANDLE PipeChannelBase::_ConnectServerPipe(std::wstring& pn) {
@@ -106,8 +112,15 @@ HANDLE PipeChannelBase::_ConnectServerPipe(std::wstring& pn) {
       CreateNamedPipe(pn.c_str(), PIPE_ACCESS_DUPLEX,
                       PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                       PIPE_UNLIMITED_INSTANCES, buff_size, buff_size, 0, sa);
-  if (pipe == INVALID_HANDLE_VALUE || !::ConnectNamedPipe(pipe, NULL)) {
+  if (pipe == INVALID_HANDLE_VALUE) {
     _ThrowLastError;
   }
-  return pipe;
+  std::unique_ptr<void, decltype(&::CloseHandle)> owner(pipe, &::CloseHandle);
+  if (!::ConnectNamedPipe(pipe, NULL)) {
+    DWORD error = ::GetLastError();
+    // A client may connect between CreateNamedPipe and ConnectNamedPipe.
+    if (error != ERROR_PIPE_CONNECTED)
+      throw error;
+  }
+  return owner.release();
 }
