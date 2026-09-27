@@ -1,0 +1,7 @@
+# Regression: a non-Mandarin full spelling must not shadow common abbreviations.
+bun	不能
+buneng	不能
+bushi	不是
+zhongg	中国
+shuruf	输入法
+wom	我们

@@ -88,6 +88,10 @@ override the toolset in `weasel.props` if needed.
 
 The interactive `TestWeaselIPC` utility is separate and is not run by CI.
 
+For an isolated comparison of an installed Rime grammar model, see
+[the model benchmark guide](tools/README.md). This optional smoke test uses
+existing model resources and does not change the installed input method.
+
 ### Build with GitHub Actions
 
 The `CI` workflow in `.github/workflows/ci.yml` builds both MSBuild and xmake
@@ -99,6 +103,10 @@ the workflow manually with **Run workflow**.
 
 Automatic Release publishing is restricted to the upstream `rime/weasel`
 repository by the workflow conditions; forks still receive build artifacts.
+
+When packaging a local build without ARM components, pass
+`/DWEASEL_X86_X64_ONLY` to `makensis`. This omits the optional ARM files and
+rejects installation on ARM64 rather than installing incomplete components.
 
 ### Install and try it live
 

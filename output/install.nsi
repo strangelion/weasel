@@ -113,6 +113,12 @@ LangString AUTOCHKUPDATE ${LANG_ENGLISH} "Automatically check for updates?"
 ;--------------------------------
 
 Function .onInit
+!ifdef WEASEL_X86_X64_ONLY
+  ${If} ${IsNativeARM64}
+    MessageBox MB_OK|MB_ICONSTOP "This installer contains x86/x64 components only. Please use an ARM64 build."
+    Abort
+  ${EndIf}
+!endif
   ; if not version >= 8.1, quit and MessageBox(if not silent)
   ${IfNot} ${AtLeastWin8.1}
     IfSilent toquit
@@ -241,9 +247,11 @@ program_files:
     File "weaselx64.dll"
   ${EndIf}
   ${If} ${IsNativeARM64}
+!ifndef WEASEL_X86_X64_ONLY
     File /nonfatal "weaselARM.dll"
     File /nonfatal "weaselARM64.dll"
     File /nonfatal "weaselARM64X.dll"
+!endif
   ${EndIf}
   ; install x64 build for NativeARM64_WINDOWS11 and NativeAMD64_WINDOWS11
   ${If} ${AtLeastWin11} ; Windows 11 and above
